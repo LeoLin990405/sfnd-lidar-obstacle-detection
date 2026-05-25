@@ -1,5 +1,17 @@
 # Sensor Fusion Self-Driving Car Course
 
+## Project Submission Notes
+
+This repository completes the Lidar Obstacle Detection project TODOs in `src/processPointClouds.cpp`.
+
+- `FilterCloud` applies voxel-grid downsampling, crops the configured region of interest, and removes points from the ego-vehicle roof.
+- `SegmentPlane` uses a custom 3D RANSAC implementation to identify road-plane inliers from point-cloud samples.
+- `SeparateClouds` splits the input cloud into obstacle and plane clouds based on the RANSAC inlier set.
+- `Clustering` groups obstacle points into objects with Euclidean clustering and a KD-tree search structure, then returns one point cloud per object.
+- `BoundingBox` computes axis-aligned bounding boxes for each detected cluster.
+
+These changes satisfy the project requirements for segmentation, clustering, bounding boxes, and efficient point-cloud preprocessing.
+
 <img src="media/ObstacleDetectionFPS.gif" width="700" height="400" />
 
 ### Welcome to the Sensor Fusion course for self-driving cars.
