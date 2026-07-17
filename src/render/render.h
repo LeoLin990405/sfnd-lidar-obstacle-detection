@@ -50,8 +50,8 @@ struct Car
   	std::string name;
   	Color color;
 
-  	Car(Vect3 setPosition, Vect3 setDimensions, Color setColor, std::string setName)
-    	: position(setPosition), dimensions(setDimensions), color(setColor), name(setName)
+	Car(Vect3 setPosition, Vect3 setDimensions, Color setColor, std::string setName)
+		: position(setPosition), dimensions(setDimensions), name(setName), color(setColor)
   	{}
 
   	void render(pcl::visualization::PCLVisualizer::Ptr& viewer)
