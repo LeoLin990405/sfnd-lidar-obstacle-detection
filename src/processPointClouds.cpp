@@ -73,14 +73,21 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
     typename pcl::PointCloud<PointT>::Ptr planeCloud(new pcl::PointCloud<PointT>());
 
     std::unordered_set<int> inlierSet(inliers->indices.begin(), inliers->indices.end());
-    for (int index = 0; index < cloud->points.size(); ++index) {
-        PointT point = cloud->points[index];
-        if (inlierSet.count(index)) {
+    for (std::size_t index = 0; index < cloud->points.size(); ++index) {
+        const PointT& point = cloud->points[index];
+        if (inlierSet.count(static_cast<int>(index))) {
             planeCloud->points.push_back(point);
         } else {
             obstCloud->points.push_back(point);
         }
     }
+
+    planeCloud->width = planeCloud->points.size();
+    planeCloud->height = 1;
+    planeCloud->is_dense = cloud->is_dense;
+    obstCloud->width = obstCloud->points.size();
+    obstCloud->height = 1;
+    obstCloud->is_dense = cloud->is_dense;
 
     std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> segResult(obstCloud, planeCloud);
     return segResult;
@@ -95,11 +102,17 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
 	pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
     std::unordered_set<int> bestInliers;
 
-    srand(time(NULL));
+    if (cloud->points.size() < 3) {
+        return SeparateClouds(inliers, cloud);
+    }
+
+    static std::mt19937 generator(42);
+    std::uniform_int_distribution<int> distribution(
+        0, static_cast<int>(cloud->points.size()) - 1);
     for (int iteration = 0; iteration < maxIterations; ++iteration) {
         std::unordered_set<int> sample;
         while (sample.size() < 3) {
-            sample.insert(rand() % cloud->points.size());
+            sample.insert(distribution(generator));
         }
 
         auto iterator = sample.begin();
@@ -117,11 +130,11 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
         }
 
         std::unordered_set<int> currentInliers;
-        for (int index = 0; index < cloud->points.size(); ++index) {
-            const PointT point = cloud->points[index];
+        for (std::size_t index = 0; index < cloud->points.size(); ++index) {
+            const PointT& point = cloud->points[index];
             const float distance = std::fabs(a * point.x + b * point.y + c * point.z + d) / norm;
             if (distance <= distanceThreshold) {
-                currentInliers.insert(index);
+                currentInliers.insert(static_cast<int>(index));
             }
         }
         if (currentInliers.size() > bestInliers.size()) {
@@ -150,26 +163,30 @@ std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::C
 
     std::vector<typename pcl::PointCloud<PointT>::Ptr> clusters;
 
-    typename pcl::search::KdTree<PointT>::Ptr tree(new pcl::search::KdTree<PointT>());
-    tree->setInputCloud(cloud);
+    KdTree3D tree;
+    std::vector<KdTree3D::Point> points;
+    points.reserve(cloud->points.size());
+    for (std::size_t index = 0; index < cloud->points.size(); ++index) {
+        const PointT& point = cloud->points[index];
+        points.push_back({{point.x, point.y, point.z}});
+        tree.insert(points.back(), static_cast<int>(index));
+    }
 
-    std::vector<pcl::PointIndices> clusterIndices;
-    pcl::EuclideanClusterExtraction<PointT> euclideanCluster;
-    euclideanCluster.setClusterTolerance(clusterTolerance);
-    euclideanCluster.setMinClusterSize(minSize);
-    euclideanCluster.setMaxClusterSize(maxSize);
-    euclideanCluster.setSearchMethod(tree);
-    euclideanCluster.setInputCloud(cloud);
-    euclideanCluster.extract(clusterIndices);
+    const std::vector<std::vector<int>> clusterIndexSets =
+        euclideanCluster3D(points, tree, clusterTolerance);
+    for (const std::vector<int>& clusterIndices : clusterIndexSets) {
+        if (clusterIndices.size() < static_cast<std::size_t>(minSize) ||
+            clusterIndices.size() > static_cast<std::size_t>(maxSize)) {
+            continue;
+        }
 
-    for (const pcl::PointIndices &indices : clusterIndices) {
         typename pcl::PointCloud<PointT>::Ptr cluster(new pcl::PointCloud<PointT>());
-        for (int index : indices.indices) {
+        for (int index : clusterIndices) {
             cluster->points.push_back(cloud->points[index]);
         }
         cluster->width = cluster->points.size();
         cluster->height = 1;
-        cluster->is_dense = true;
+        cluster->is_dense = cloud->is_dense;
         clusters.push_back(cluster);
     }
 

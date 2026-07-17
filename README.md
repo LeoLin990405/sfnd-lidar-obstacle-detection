@@ -2,15 +2,26 @@
 
 ## Project Submission Notes
 
-This repository completes the Lidar Obstacle Detection project TODOs in `src/processPointClouds.cpp`.
+This repository implements the complete city-block Lidar obstacle-detection
+pipeline and continuously plays the supplied PCD stream.
 
 - `FilterCloud` applies voxel-grid downsampling, crops the configured region of interest, and removes points from the ego-vehicle roof.
-- `SegmentPlane` uses a custom 3D RANSAC implementation to identify road-plane inliers from point-cloud samples.
+- `SegmentPlane` uses a custom 3D RANSAC implementation to identify road-plane inliers from point-cloud samples. It does not use PCL's plane-segmentation algorithm.
 - `SeparateClouds` splits the input cloud into obstacle and plane clouds based on the RANSAC inlier set.
-- `Clustering` groups obstacle points into objects with Euclidean clustering and a KD-tree search structure, then returns one point cloud per object.
+- `KdTree3D` in `src/kdtree.h` is a custom three-dimensional KD-tree with radius search across the x, y, and z axes.
+- `euclideanCluster3D` in `src/euclidean_clustering.h` performs custom Euclidean connected-component expansion. `Clustering` uses these two implementations instead of PCL's KD-tree and cluster extraction classes.
 - `BoundingBox` computes axis-aligned bounding boxes for each detected cluster.
+- `cityBlock` in `src/environment.cpp` runs that pipeline on every frame and renders each obstacle cluster with exactly one bounding box.
 
-These changes satisfy the project requirements for segmentation, clustering, bounding boxes, and efficient point-cloud preprocessing.
+The automated tests cover the custom KD-tree and clustering behavior, then run
+the full processing pipeline against a real supplied PCD frame.
+
+```shell
+cmake -S . -B build
+cmake --build build --parallel 2
+ctest --test-dir build --output-on-failure
+./build/environment
+```
 
 <img src="media/ObstacleDetectionFPS.gif" width="700" height="400" />
 
